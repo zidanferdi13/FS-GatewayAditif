@@ -9,6 +9,9 @@ class SerialService {
     this.port = null;
     this.connected = false;
     this._lineBuffer = '';
+    this._manualClose = false;
+    this._retryTimer = null;
+    this.lastError = null;
 
     // Weight data
     this.latestWeight = null;
@@ -22,30 +25,57 @@ class SerialService {
     this.onConfirmCallback = null;
   }
 
+  /**
+   * Open the configured port. Resolves after the first open attempt.
+   * Empty port = scale disabled (no error, no retry).
+   * On failure/close, retries every SerialService.RETRY_MS until disconnect().
+   */
   connect() {
-    const sourceConfig = this.serialConfig || config.serial;
+    const sourceConfig = this.serialConfig || config.serial || {};
     const portPath = sourceConfig.port;
     const baudRate = sourceConfig.baudRate;
 
+    this._manualClose = false;
+    clearTimeout(this._retryTimer);
+    this._retryTimer = null;
+
+    if (!portPath) {
+      console.log(`⚪ [${this.scale}] No port configured — scale disabled`);
+      return Promise.resolve();
+    }
+    if (this.port && (this.port.isOpen || this.port.opening)) return Promise.resolve();
+    if (this.port) this.port.removeAllListeners();
+
     console.log(`🔌 [${this.scale}] Opening serial port: ${portPath} @ ${baudRate} bps`);
+
+    let done;
+    const opened = new Promise((resolve) => { done = resolve; });
 
     try {
       this.port = new SerialPort({ path: portPath, baudRate: baudRate, autoOpen: false });
 
       this.port.open((err) => {
         if (err) {
-          console.error(`❌ [${this.scale}] Failed to open serial port: ${err.message}`);
+          // Log only when the error changes — retry every 5 s must not flood the log
+          if (err.message !== this.lastError) {
+            console.error(`❌ [${this.scale}] Failed to open serial port: ${err.message}`);
+          }
           this.connected = false;
+          this.lastError = err.message;
           if (this.io) {
             const statusPayload = { scale: this.scale, connected: false, error: err.message };
             this.io.emit('serial-status', statusPayload);
             this.io.emit(`serial-status:${this.scale}`, statusPayload);
           }
+          this._scheduleReconnect();
+          done();
           return;
         }
 
         console.log(`✅ [${this.scale}] Serial port opened: ${portPath}`);
         this.connected = true;
+        this.lastError = null;
+        done();
         if (this.io) {
           const statusPayload = { scale: this.scale, connected: true };
           this.io.emit('serial-status', statusPayload);
@@ -67,11 +97,13 @@ class SerialService {
       this.port.on('error', (err) => {
         console.error(`❌ [${this.scale}] Serial port error: ${err.message}`);
         this.connected = false;
+        this.lastError = err.message;
         if (this.io) {
           const statusPayload = { scale: this.scale, connected: false, error: err.message };
           this.io.emit('serial-status', statusPayload);
           this.io.emit(`serial-status:${this.scale}`, statusPayload);
         }
+        this._scheduleReconnect();
       });
 
       this.port.on('close', () => {
@@ -82,11 +114,44 @@ class SerialService {
           this.io.emit('serial-status', statusPayload);
           this.io.emit(`serial-status:${this.scale}`, statusPayload);
         }
+        this._scheduleReconnect();
       });
 
     } catch (err) {
       console.error(`❌ SerialPort init error: ${err.message}`);
+      this.lastError = err.message;
+      this._scheduleReconnect();
+      done();
     }
+    return opened;
+  }
+
+  /** One pending retry at most; no-op after manual disconnect or when disabled. */
+  _scheduleReconnect() {
+    if (this._manualClose || this._retryTimer) return;
+    const sourceConfig = this.serialConfig || config.serial || {};
+    if (!sourceConfig.port) return;
+    this._retryTimer = setTimeout(() => {
+      this._retryTimer = null;
+      this.connect();
+    }, SerialService.RETRY_MS);
+  }
+
+  /** Apply changed serialConfig (mutated in place by settings) and reconnect. */
+  async reconfigure() {
+    await this.disconnect();
+    this.lastError = null;
+    return this.connect();
+  }
+
+  getStatus() {
+    const sourceConfig = this.serialConfig || config.serial || {};
+    return {
+      connected: this.connected,
+      port:      sourceConfig.port || '',
+      baudRate:  sourceConfig.baudRate,
+      error:     this.lastError
+    };
   }
 
   // Parse satu baris dari timbangan
@@ -198,11 +263,17 @@ class SerialService {
     return this.connected;
   }
 
+  /** Manual close: cancels retry. Resolves once the port is closed. */
   disconnect() {
-    if (this.port && this.port.isOpen) {
-      this.port.close();
-    }
+    this._manualClose = true;
+    clearTimeout(this._retryTimer);
+    this._retryTimer = null;
+    const p = this.port;
+    if (!p || !p.isOpen) return Promise.resolve();
+    return new Promise((resolve) => p.close(() => resolve()));
   }
 }
+
+SerialService.RETRY_MS = 5000;
 
 module.exports = SerialService;

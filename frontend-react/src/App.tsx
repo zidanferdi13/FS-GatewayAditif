@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { LaporanPage } from '@/pages/LaporanPage';
+import { SettingsPage } from '@/pages/SettingsPage';
+import { ToastContainer } from '@/components/modal/ToastContainer';
 import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/utils/cn';
 
@@ -19,6 +21,7 @@ export default function App() {
       <AppShell>
         <Routes>
           <Route path="/laporan" element={<LaporanPage />} />
+          <Route path="/pengaturan" element={<><SettingsPage /><ToastContainer /></>} />
           <Route path="*" element={<DashboardPage />} />
         </Routes>
       </AppShell>

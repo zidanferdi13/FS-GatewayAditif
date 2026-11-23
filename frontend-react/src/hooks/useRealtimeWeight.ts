@@ -3,7 +3,7 @@ import { socketService } from '@/services/socket';
 import { useMOStore, selectExpectedScale } from '@/store/moStore';
 import { useScaleStore } from '@/store/scaleStore';
 import { useUIStore } from '@/store/uiStore';
-import { WEIGHT_TOLERANCE } from '@/utils/scaleUtils';
+import { thresholds } from '@/utils/scaleUtils';
 import type { WeightEvent } from '@/types';
 
 /**
@@ -58,7 +58,7 @@ export function useRealtimeWeight() {
       const scaleState = useScaleStore.getState()[scale];
 
       if (scale === expected && target > 0) {
-        const overLimit = target * (1 + WEIGHT_TOLERANCE);
+        const overLimit = target * (1 + thresholds.weightTolerance);
         if (weight > overLimit && !scaleState.overloadShown) {
           scaleStore.setOverload(scale, true);
           setOverloadInfo(weight, target);

@@ -9,7 +9,7 @@ import { socketService } from '@/services/socket';
 import { WeightDisplay } from './WeightDisplay';
 import { ProgressBar } from './ProgressBar';
 import { StabilityIndicator } from './StabilityIndicator';
-import { AUTO_CONFIRM_DELAY_MS, SKIP_KEMASAN_DELAY_MS, WEIGHT_TOLERANCE } from '@/utils/scaleUtils';
+import { thresholds } from '@/utils/scaleUtils';
 import type { ScaleType } from '@/types';
 
 interface ScalePanelProps {
@@ -42,8 +42,8 @@ export const ScalePanel = memo(function ScalePanel({ scaleType }: ScalePanelProp
   const isConfirmReady =
     isActiveScale &&
     target > 0 &&
-    weight >= target * (1 - WEIGHT_TOLERANCE) &&
-    weight <= target * (1 + WEIGHT_TOLERANCE);
+    weight >= target * (1 - thresholds.weightTolerance) &&
+    weight <= target * (1 + thresholds.weightTolerance);
 
   // ── print-lot-data feedback — listen for local printer result ─────────────
   const showToastRef = useRef(useUIStore.getState().showToast);
@@ -131,7 +131,7 @@ export const ScalePanel = memo(function ScalePanel({ scaleType }: ScalePanelProp
         useUIStore.getState().setLotComplete(completedLot, st.currentLot);
         openModal('lotComplete');
       }
-    }, AUTO_CONFIRM_DELAY_MS);
+    }, thresholds.autoConfirmDelayMs);
   }, [scaleType, weight, target, openModal]);
 
   // ── Auto-skip Kemasan material ──────────────────────────
@@ -198,7 +198,7 @@ export const ScalePanel = memo(function ScalePanel({ scaleType }: ScalePanelProp
         openModal('lotComplete');
       }
       // If next material is also Kemasan, effect re-fires on next render
-    }, SKIP_KEMASAN_DELAY_MS);
+    }, thresholds.skipKemasanDelayMs);
 
     return () => {
       clearTimeout(timer);

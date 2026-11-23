@@ -23,6 +23,18 @@ module.exports = {
     overload_threshold: parseFloat(process.env.OVERLOAD_THRESHOLD)  || 90.0
   },
 
+  // Served to the frontend via GET /api/settings/public (defaults = old frontend constants)
+  thresholds: {
+    smallScaleMaxKg:    20,
+    weightTolerance:    0.02,
+    autoConfirmDelayMs: 3000,
+    skipKemasanDelayMs: 3000
+  },
+
+  settings: {
+    pin: process.env.SETTINGS_PIN || ''
+  },
+
   database: {
     host:            process.env.DB_HOST            || 'localhost',
     user:            process.env.DB_USER            || 'root',

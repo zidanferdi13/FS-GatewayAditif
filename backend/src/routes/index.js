@@ -8,9 +8,12 @@ const router = express.Router();
 
 const weightRoutes = require('./weightRoutes');
 const moRoutes     = require('./moRoutes');
+const settingsRoutes = require('./settingsRoutes');
 
 module.exports = (controllers) => {
-  const { weightController, moController } = controllers;
+  const { weightController, moController, settingsController } = controllers;
+
+  router.use('/settings', settingsRoutes(settingsController));
 
   // Mount weight routes
   router.use('/weight', weightRoutes(weightController));

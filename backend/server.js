@@ -8,6 +8,8 @@
 const http     = require('http');
 const socketIo = require('socket.io');
 const config   = require('./src/config/config');
+const settingsStore = require('./src/services/settingsStore');
+settingsStore.load();   // settings.json overrides .env — must run before services read config
 const createApp = require('./src/app');
 
 const SerialService = require('./src/services/serialService');
@@ -15,6 +17,7 @@ const moService     = require('./src/services/moService');
 const PrinterService = require('./src/services/printerService');
 const WeightController = require('./src/controllers/weightController');
 const MOController = require('./src/controllers/moController');
+const SettingsController = require('./src/controllers/settingsController');
 
 /* ════════════════════════════════════════════════════════════
    SERIAL CLIENTS
@@ -79,7 +82,9 @@ const printerService = new PrinterService(config.printer);
 const weightController = new WeightController(serialClient);
 const moController     = new MOController(printerService);
 
-const app    = createApp({ weightController, moController });
+const settingsController = new SettingsController({ small: serialSmall, large: serialLarge }, printerService);
+
+const app    = createApp({ weightController, moController, settingsController });
 const server = http.createServer(app);
 
 /* ════════════════════════════════════════════════════════════
@@ -148,8 +153,8 @@ io.on('connection', socket => {
     console.log(`👤 Client disconnected: ${socket.id}`);
   });
 
-  /* ── simulate-weight (TRIAL ONLY — remove in prod) ───── */
-  socket.on('simulate-weight', ({ scale = 'small', weight = 0, stable = true } = {}) => {
+  /* ── simulate-weight (TRIAL ONLY) — off unless ENABLE_SIMULATOR=true ───── */
+  if (process.env.ENABLE_SIMULATOR === 'true') socket.on('simulate-weight', ({ scale = 'small', weight = 0, stable = true } = {}) => {
     const svc  = scale === 'large' ? serialLarge : serialSmall;
     const w    = Number(weight);
     if (!Number.isFinite(w)) return;

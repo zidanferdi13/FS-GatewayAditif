@@ -70,6 +70,47 @@ export interface MODetail {
   rm_details:    RMDetailItem[];
 }
 
+// ── Settings ──────────────────────────────────────────────────────────────────────────────
+
+export interface ScaleStatus {
+  connected: boolean;
+  port:      string;
+  baudRate:  number;
+  error:     string | null;
+}
+
+export interface SettingsData {
+  scales:     Record<'small' | 'large', { port: string; baudRate: number }>;
+  printer:    { name: string; timeout: number };
+  thresholds: {
+    smallScaleMaxKg:    number;
+    weightTolerance:    number;
+    autoConfirmDelayMs: number;
+    skipKemasanDelayMs: number;
+  };
+  status: Record<'small' | 'large', ScaleStatus>;
+}
+
+export interface SerialPortInfo { path: string; byId: string | null; manufacturer: string | null; serialNumber: string | null }
+export interface PrinterQueue   { name: string; state: string }
+
+/** PIN is kept in component memory only and sent per request. */
+const pinned = (pin: string, init: RequestInit = {}): RequestInit => ({
+  ...init,
+  headers: { 'Content-Type': 'application/json', 'X-Settings-Pin': pin },
+});
+
+export const settingsApi = {
+  get:        (pin: string) => request<SettingsData>('/settings', pinned(pin)),
+  save:       (pin: string, body: Partial<Omit<SettingsData, 'status'>>) =>
+    request<SettingsData>('/settings', pinned(pin, { method: 'PUT', body: JSON.stringify(body) })),
+  ports:      (pin: string) => request<SerialPortInfo[]>('/settings/ports', pinned(pin)),
+  printers:   (pin: string) => request<PrinterQueue[]>('/settings/printers', pinned(pin)),
+  testPrint:  (pin: string) => request<unknown>('/settings/printer/test', pinned(pin, { method: 'POST', body: '{}' })),
+  reconnect:  (pin: string, scale: 'small' | 'large') =>
+    request<ScaleStatus>(`/settings/scales/${scale}/reconnect`, pinned(pin, { method: 'POST', body: '{}' })),
+};
+
 export const api = {
   /** List all MOs (newest first) */
   listMO: (): Promise<MOListItem[]> =>

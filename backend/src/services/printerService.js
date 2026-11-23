@@ -8,6 +8,13 @@
 const { execFile } = require('child_process');
 const TSPLBuilder = require('./TSPLBuilder');
 
+function run(cmd, args) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { timeout: 5000 }, (err, stdout, stderr) =>
+      err ? reject(new Error((stderr || err.message).trim())) : resolve(stdout));
+  });
+}
+
 class PrinterNotFoundError extends Error {
   constructor(m) { super(m); this.name = 'PrinterNotFoundError'; }
 }
@@ -26,6 +33,26 @@ class PrinterService {
   }
 
   getPrinterName() { return this._printerName; }
+
+  setConfig({ name, timeout } = {}) {
+    if (name !== undefined) this._printerName = name;
+    if (timeout !== undefined) this._timeout = timeout;
+  }
+
+  /** CUPS queues with state. Throws when CUPS is unavailable. */
+  async listQueues() {
+    const out = await run('lpstat', ['-p']);
+    // "printer NAME is idle.  enabled since ..." / "printer NAME disabled since ..."
+    return out.split('\n').map(l => l.match(/^printer (\S+) (.*)$/)).filter(Boolean)
+      .map(m => ({ name: m[1], state: /disabled/.test(m[2]) ? 'disabled' : /idle/.test(m[2]) ? 'idle' : 'busy' }));
+  }
+
+  async printTest() {
+    if (!this._printerName)
+      throw new PrinterOfflineError('No printer configured.');
+    await this._execCupsPrint(TSPLBuilder.buildLotLabel({ mo: 'TEST PRINT', lot: 'TEST/LOT000' }));
+    return { method: 'cups-tspl' };
+  }
 
   async printLot(data) {
     if (!this._printerName)

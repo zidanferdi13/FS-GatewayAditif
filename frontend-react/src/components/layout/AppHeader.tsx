@@ -1,4 +1,4 @@
-import { Moon, Scale, Sun, FileText } from 'lucide-react';
+import { Moon, Scale, Sun, FileText, Settings } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useClock } from '@/hooks/useClock';
 import { useMOStore } from '@/store/moStore';
@@ -65,6 +65,15 @@ export function AppHeader() {
         >
           <FileText size={14} />
           Laporan
+        </button>
+
+        <button
+          onClick={() => navigate('/pengaturan')}
+          aria-label="Pengaturan"
+          title="Pengaturan"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-pill border border-b-card bg-bg-elevated text-t-secondary transition-all duration-200 hover:border-c-blue hover:text-c-blue"
+        >
+          <Settings size={14} />
         </button>
 
         <button
