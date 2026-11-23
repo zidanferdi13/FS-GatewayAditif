@@ -85,6 +85,10 @@ class SerialService {
 
       // Manual line buffer — splits on \r\n or \n
       this.port.on('data', (chunk) => {
+        // Debug: raw bytes as the scale sent them (JSON.stringify shows \r \n). Set SERIAL_DEBUG=true.
+        if (process.env.SERIAL_DEBUG === 'true') {
+          console.log(`📥 [${this.scale}] RAW ${JSON.stringify(chunk.toString())}`);
+        }
         this._lineBuffer += chunk.toString();
         const lines = this._lineBuffer.split(/\r\n|\n/);
         this._lineBuffer = lines.pop(); // simpan sisa yang belum lengkap
@@ -159,7 +163,12 @@ class SerialService {
   _handleLine(line) {
     // Regex: (ST|US) , <mode> , <sign> <spasi> <nilai> <spasi> <unit>
     const match = line.match(/^(ST|US),\w+,([+-])\s*([\d.]+)\s*(\w+)/);
-    if (!match) return; // bukan baris data timbangan
+    if (!match) {
+      if (process.env.SERIAL_DEBUG === 'true') {
+        console.log(`⚠️ [${this.scale}] baris tidak cocok format: ${JSON.stringify(line)}`);
+      }
+      return; // bukan baris data timbangan
+    }
 
     const status   = match[1];              // 'ST' atau 'US'
     const sign     = match[2];              // '+' atau '-'
@@ -172,6 +181,8 @@ class SerialService {
 
     const stable    = (status === 'ST');
     const timestamp = new Date().toISOString();
+
+    console.log
 
     const payload = {
       scale:     this.scale,
