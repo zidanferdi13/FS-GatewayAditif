@@ -46,7 +46,7 @@ module.exports = {
   api: {
     kanban: {
       baseUrl:         process.env.KANBAN_API_URL   || 'https://services.ama.id/kanban',
-      findOneEndpoint: '/findOne'
+      findOneEndpoint: '/findOnePremix'
     }
   },
 
