@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -18,6 +18,9 @@ interface ScalePanelProps {
 
 const BADGE_LABEL = { small: 'SMALL', large: 'LARGE' } as const;
 const RANGE_LABEL = { small: '≤ 20 kg', large: '> 20 kg' } as const;
+// Scale must read ≤ this (kg) after a material change before Konfirmasi unlocks.
+// ponytail: fixed constant; make it a setting if load-cell noise needs per-site tuning.
+const ZERO_EPS = 0.05;
 
 /**
  * Full-featured panel for one physical scale.
@@ -30,6 +33,7 @@ export const ScalePanel = memo(function ScalePanel({ scaleType }: ScalePanelProp
   const autoConfirm    = useMOStore((s) => s.autoConfirmActive);
   const currentMaterial = useMOStore(selectCurrentMaterial);
   const currentRMIndex  = useMOStore((s) => s.currentRMIndex);
+  const currentLotNo    = useMOStore((s) => s.currentLot);
   const expectedScale  = useMOStore(selectExpectedScale);
   const openModal      = useUIStore((s) => s.openModal);
   const closeModal     = useUIStore((s) => s.closeModal);
@@ -38,9 +42,22 @@ export const ScalePanel = memo(function ScalePanel({ scaleType }: ScalePanelProp
   const isActiveScale = moData ? scaleType === expectedScale : true;
   const target        = isActiveScale ? (currentMaterial?.targetWeight ?? 0) : 0;
   const { weight, stable, lastUpdate } = scaleState;
+  // After material/lot change, lock Konfirmasi until scale returns to ~0 (tare),
+  // so leftover weight can't match the next target.
+  const [locked, setLocked] = useState(false);
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    setLocked(useScaleStore.getState()[scaleType].weight > ZERO_EPS);
+  }, [currentRMIndex, currentLotNo, scaleType]);
+  useEffect(() => {
+    if (locked && weight <= ZERO_EPS) setLocked(false);
+  }, [weight, locked]);
+
   // Confirm when weight within ± tolerance of target (beyond +tol → overload alarm)
   const isConfirmReady =
     isActiveScale &&
+    !locked &&
     target > 0 &&
     weight >= target * (1 - thresholds.weightTolerance) &&
     weight <= target * (1 + thresholds.weightTolerance);
@@ -281,7 +298,9 @@ export const ScalePanel = memo(function ScalePanel({ scaleType }: ScalePanelProp
 
       {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between pt-1">
-        <span className="text-sm text-t-muted">{timestampText}</span>
+        <span className={cn('text-sm', locked && isActiveScale ? 'text-c-amber font-semibold' : 'text-t-muted')}>
+          {locked && isActiveScale ? 'Tare / kosongkan timbangan dulu' : timestampText}
+        </span>
 
         <button
           onClick={handleManualConfirm}
